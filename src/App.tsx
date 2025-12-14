@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Calendar, List, Trash2, Phone, Clock, User, FileText, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { parseAppointment } from './lib/parser';
+import { supabase } from './lib/supabase';
 import './App.css';
 
 interface Appointment {
@@ -18,43 +19,65 @@ interface Appointment {
 }
 
 function App() {
-  const [appointments, setAppointments] = useState<Appointment[]>([
-    {
-      id: '1',
-      name: 'Sarah Johnson',
-      phone: '720-555-1234',
-      details: 'wants kitchen remodel estimate',
-      datetime: '2025-12-12T14:00:00'
-    },
-    {
-      id: '2',
-      name: 'Mike Chen',
-      phone: '303-555-5678',
-      details: 'bathroom inspection follow-up',
-      datetime: '2025-12-15T10:30:00'
-    }
-  ]);
-
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [inputText, setInputText] = useState('');
   const [currentMonth, setCurrentMonth] = useState(new Date(2025, 11, 1));
   const [selectedEvent, setSelectedEvent] = useState<Appointment | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const handleParse = () => {
+  useEffect(() => {
+    loadAppointments();
+  }, []);
+
+  const loadAppointments = async () => {
+    const { data, error } = await supabase
+      .from('appointments')
+      .select('*')
+      .order('datetime', { ascending: true });
+
+    if (error) {
+      console.error('Error loading appointments:', error);
+      return;
+    }
+
+    if (data) {
+      setAppointments(data);
+    }
+  };
+
+  const handleParse = async () => {
     if (!inputText.trim()) return;
 
     const parsed = parseAppointment(inputText);
     if (parsed) {
-      const newAppointment: Appointment = {
-        id: Date.now().toString(),
-        ...parsed
-      };
-      setAppointments([...appointments, newAppointment]);
-      setInputText('');
+      const { data, error } = await supabase
+        .from('appointments')
+        .insert([parsed])
+        .select();
+
+      if (error) {
+        console.error('Error saving appointment:', error);
+        return;
+      }
+
+      if (data) {
+        setAppointments([...appointments, ...data]);
+        setInputText('');
+      }
     }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase
+      .from('appointments')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting appointment:', error);
+      return;
+    }
+
     setAppointments(appointments.filter(apt => apt.id !== id));
     setIsModalOpen(false);
   };
