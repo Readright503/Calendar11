@@ -48,7 +48,7 @@ function App() {
   const handleParse = async () => {
     if (!inputText.trim()) return;
 
-    const parsed = parseAppointment(inputText);
+    const parsed = await parseAppointment(inputText);
     if (parsed) {
       const { data, error } = await supabase
         .from('appointments')

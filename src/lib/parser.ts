@@ -5,7 +5,69 @@ interface ParsedAppointment {
   datetime: string;
 }
 
-export function parseAppointment(text: string): ParsedAppointment | null {
+export async function parseAppointment(text: string): Promise<ParsedAppointment | null> {
+  if (!text.trim()) return null;
+
+  try {
+    const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY;
+
+    if (!apiKey) {
+      console.warn('DeepSeek API key not found, falling back to regex parser');
+      return fallbackParser(text);
+    }
+
+    const currentDate = new Date().toISOString().split('T')[0];
+
+    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an appointment parser. Extract information and return ONLY valid JSON with these exact fields: name (string), phone (string with 10 digits), datetime (ISO 8601 string), details (string). If time is not specified, use 12:00 PM. Today is ${currentDate}.`
+          },
+          {
+            role: 'user',
+            content: text
+          }
+        ],
+        temperature: 0.3
+      })
+    });
+
+    if (!response.ok) {
+      console.error('DeepSeek API error:', response.status);
+      return fallbackParser(text);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+
+    if (!content) {
+      console.error('No content in DeepSeek response');
+      return fallbackParser(text);
+    }
+
+    const parsed = JSON.parse(content);
+
+    return {
+      name: parsed.name || 'Unknown',
+      phone: parsed.phone || 'No phone',
+      details: parsed.details || 'No details provided',
+      datetime: parsed.datetime || new Date().toISOString()
+    };
+  } catch (error) {
+    console.error('Error calling DeepSeek API:', error);
+    return fallbackParser(text);
+  }
+}
+
+function fallbackParser(text: string): ParsedAppointment | null {
   if (!text.trim()) return null;
 
   let remainingText = text.trim();
