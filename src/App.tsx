@@ -40,6 +40,8 @@ function App() {
   const [isParsing, setIsParsing] = useState(false);
   const [currentTab, setCurrentTab] = useState('calendar');
   const [selectedClientId, setSelectedClientId] = useState<string | undefined>();
+  const [isEditingDetails, setIsEditingDetails] = useState(false);
+  const [editedDetails, setEditedDetails] = useState('');
 
   useEffect(() => {
     loadAppointments();
@@ -163,8 +165,33 @@ function App() {
     setIsModalOpen(false);
   };
 
+  const handleUpdateDetails = async () => {
+    if (!selectedEvent) return;
+
+    const { error } = await supabase
+      .from('appointments')
+      .update({ details: editedDetails })
+      .eq('id', selectedEvent.id);
+
+    if (error) {
+      console.error('Error updating appointment:', error);
+      toast.error('Failed to update appointment');
+      return;
+    }
+
+    const updatedAppointments = appointments.map(apt =>
+      apt.id === selectedEvent.id ? { ...apt, details: editedDetails } : apt
+    );
+    setAppointments(updatedAppointments);
+    setSelectedEvent({ ...selectedEvent, details: editedDetails });
+    setIsEditingDetails(false);
+    toast.success('Appointment updated');
+  };
+
   const handleEventClick = (appointment: Appointment) => {
     setSelectedEvent(appointment);
+    setEditedDetails(appointment.details);
+    setIsEditingDetails(false);
     setIsModalOpen(true);
   };
 
@@ -476,11 +503,45 @@ function App() {
 
               <div className="flex items-start gap-3">
                 <FileText className="w-5 h-5 text-gray-600 mt-0.5" />
-                <div>
-                  <p className="text-sm text-gray-600">Details</p>
-                  <p className="font-semibold">{selectedEvent.details}</p>
+                <div className="flex-1">
+                  <p className="text-sm text-gray-600 mb-1">Details</p>
+                  {isEditingDetails ? (
+                    <Textarea
+                      value={editedDetails}
+                      onChange={(e) => setEditedDetails(e.target.value)}
+                      className="min-h-[100px]"
+                    />
+                  ) : (
+                    <p className="font-semibold">{selectedEvent.details}</p>
+                  )}
                 </div>
               </div>
+
+              {isEditingDetails ? (
+                <div className="flex gap-2">
+                  <Button onClick={handleUpdateDetails} className="flex-1">
+                    Save
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsEditingDetails(false);
+                      setEditedDetails(selectedEvent.details);
+                    }}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setIsEditingDetails(true)}
+                >
+                  Edit Details
+                </Button>
+              )}
 
               {selectedEvent.clientId && (
                 <Button
