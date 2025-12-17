@@ -8,6 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { parseAppointment } from './lib/parser';
 import { supabase } from './lib/supabase';
+import { toast } from 'sonner';
+import { Toaster } from '@/components/ui/sonner';
 import './App.css';
 
 interface Appointment {
@@ -24,6 +26,7 @@ function App() {
   const [currentMonth, setCurrentMonth] = useState(new Date(2025, 11, 1));
   const [selectedEvent, setSelectedEvent] = useState<Appointment | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isParsing, setIsParsing] = useState(false);
 
   useEffect(() => {
     loadAppointments();
@@ -46,24 +49,55 @@ function App() {
   };
 
   const handleParse = async () => {
-    if (!inputText.trim()) return;
+    if (!inputText.trim()) {
+      toast.error('Please enter appointment text');
+      return;
+    }
 
-    const parsed = await parseAppointment(inputText);
-    if (parsed) {
+    setIsParsing(true);
+    console.log('🔍 Starting parse...');
+
+    try {
+      const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY;
+      if (apiKey) {
+        toast.info('🤖 Processing with DeepSeek AI...');
+      } else {
+        toast.info('⚙️ Using regex parser...');
+      }
+
+      const parsed = await parseAppointment(inputText);
+
+      if (!parsed) {
+        toast.error('Could not parse appointment');
+        setIsParsing(false);
+        return;
+      }
+
+      console.log('💾 Saving to database:', parsed);
+
       const { data, error } = await supabase
         .from('appointments')
         .insert([parsed])
         .select();
 
       if (error) {
-        console.error('Error saving appointment:', error);
+        console.error('❌ Database error:', error);
+        toast.error(`Database error: ${error.message}`);
+        setIsParsing(false);
         return;
       }
 
       if (data) {
+        console.log('✅ Saved successfully:', data);
         setAppointments([...appointments, ...data]);
         setInputText('');
+        toast.success(`✅ Appointment scheduled for ${new Date(parsed.datetime).toLocaleDateString()}`);
       }
+    } catch (error) {
+      console.error('❌ Parse error:', error);
+      toast.error('Failed to parse appointment');
+    } finally {
+      setIsParsing(false);
     }
   };
 
@@ -153,7 +187,9 @@ function App() {
   const days = getDaysInMonth(currentMonth);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 md:p-8">
+    <>
+      <Toaster position="top-center" />
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
         <div className="mb-8 text-center">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Quick Scheduler</h1>
@@ -180,8 +216,9 @@ function App() {
                 onClick={handleParse}
                 className="w-full"
                 size="lg"
+                disabled={isParsing}
               >
-                Parse & Save Appointment
+                {isParsing ? 'Processing...' : 'Parse & Save Appointment'}
               </Button>
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
@@ -387,7 +424,8 @@ function App() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </>
   );
 }
 
