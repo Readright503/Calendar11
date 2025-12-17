@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Calendar, List, Trash2, Phone, Clock, User, FileText, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { Calendar, List, Trash2, Phone, Clock, User, FileText, ChevronLeft, ChevronRight, Plus, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
 import { parseAppointment } from './lib/parser';
 import { supabase } from './lib/supabase';
 import './App.css';
@@ -24,9 +28,16 @@ function App() {
   const [currentMonth, setCurrentMonth] = useState(new Date(2025, 11, 1));
   const [selectedEvent, setSelectedEvent] = useState<Appointment | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [apiKey, setApiKey] = useState('');
+  const [useAI, setUseAI] = useState(false);
 
   useEffect(() => {
     loadAppointments();
+    const savedApiKey = localStorage.getItem('deepseekApiKey') || '';
+    const savedUseAI = localStorage.getItem('useAIParser') === 'true';
+    setApiKey(savedApiKey);
+    setUseAI(savedUseAI);
   }, []);
 
   const loadAppointments = async () => {
@@ -45,10 +56,60 @@ function App() {
     }
   };
 
+  const parseWithAI = async (text: string) => {
+    try {
+      const prompt = `Extract appointment details from this text and return ONLY a JSON object with: name (string), phone (string, 10 digits), details (string), datetime (ISO 8601 string). Text: ${text}`;
+
+      const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.3
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('AI parsing failed');
+      }
+
+      const data = await response.json();
+      const content = data.choices[0]?.message?.content;
+
+      if (!content) {
+        throw new Error('No response from AI');
+      }
+
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('Invalid JSON response');
+      }
+
+      const parsed = JSON.parse(jsonMatch[0]);
+      return parsed;
+    } catch (error) {
+      console.error('AI parsing error:', error);
+      return null;
+    }
+  };
+
   const handleParse = async () => {
     if (!inputText.trim()) return;
 
-    const parsed = parseAppointment(inputText);
+    let parsed = null;
+
+    if (useAI && apiKey) {
+      parsed = await parseWithAI(inputText);
+    }
+
+    if (!parsed) {
+      parsed = parseAppointment(inputText);
+    }
+
     if (parsed) {
       const { data, error } = await supabase
         .from('appointments')
@@ -65,6 +126,12 @@ function App() {
         setInputText('');
       }
     }
+  };
+
+  const handleSaveSettings = () => {
+    localStorage.setItem('deepseekApiKey', apiKey);
+    localStorage.setItem('useAIParser', useAI.toString());
+    setIsSettingsOpen(false);
   };
 
   const handleDelete = async (id: string) => {
@@ -155,8 +222,22 @@ function App() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8 text-center">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Quick Scheduler</h1>
+        <div className="mb-8 text-center relative">
+          <div className="absolute right-0 top-0">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setIsSettingsOpen(true)}
+            >
+              <Settings className="w-5 h-5" />
+            </Button>
+          </div>
+          <h1 className="text-4xl font-bold text-gray-900 mb-2 flex items-center justify-center gap-2">
+            Quick Scheduler
+            {useAI && apiKey && (
+              <Badge variant="default" className="text-xs">AI</Badge>
+            )}
+          </h1>
           <p className="text-gray-600">Parse unstructured text into calendar appointments</p>
         </div>
 
@@ -385,6 +466,43 @@ function App() {
               </Button>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Settings</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="apiKey">DeepSeek API Key</Label>
+              <Input
+                id="apiKey"
+                type="password"
+                placeholder="sk-..."
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <Label htmlFor="useAI">Use AI Parser</Label>
+              <Switch
+                id="useAI"
+                checked={useAI}
+                onCheckedChange={setUseAI}
+              />
+            </div>
+
+            <Button
+              className="w-full"
+              onClick={handleSaveSettings}
+            >
+              Save Settings
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
