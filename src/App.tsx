@@ -20,6 +20,7 @@ interface Appointment {
   details: string;
   datetime: string;
   clientId?: string;
+  client_id?: string;
 }
 
 interface Client {
@@ -76,7 +77,11 @@ function App() {
     }
 
     if (data) {
-      setAppointments(data);
+      const mappedData = data.map(apt => ({
+        ...apt,
+        clientId: apt.client_id
+      }));
+      setAppointments(mappedData);
     }
   };
 
@@ -106,7 +111,10 @@ function App() {
       }
 
       const clientId = findMatchingClient(parsed.name);
-      const appointmentWithClient = { ...parsed, clientId };
+      const appointmentWithClient = {
+        ...parsed,
+        client_id: clientId
+      };
 
       console.log('💾 Saving to database:', appointmentWithClient);
 
@@ -124,7 +132,11 @@ function App() {
 
       if (data) {
         console.log('✅ Saved successfully:', data);
-        setAppointments([...appointments, ...data]);
+        const mappedData = data.map(apt => ({
+          ...apt,
+          clientId: apt.client_id
+        }));
+        setAppointments([...appointments, ...mappedData]);
         setInputText('');
         toast.success(`✅ Appointment scheduled for ${new Date(parsed.datetime).toLocaleDateString()}`);
       }
