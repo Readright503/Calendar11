@@ -19,6 +19,15 @@ interface Appointment {
   phone: string;
   details: string;
   datetime: string;
+  clientId?: string;
+}
+
+interface Client {
+  id: string;
+  name: string;
+  phone: string;
+  status: string;
+  notes: string;
 }
 
 function App() {
@@ -28,10 +37,32 @@ function App() {
   const [selectedEvent, setSelectedEvent] = useState<Appointment | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
+  const [currentTab, setCurrentTab] = useState('calendar');
+  const [selectedClientId, setSelectedClientId] = useState<string | undefined>();
 
   useEffect(() => {
     loadAppointments();
   }, []);
+
+  const loadClients = (): Client[] => {
+    const stored = localStorage.getItem('quickSchedulerClients');
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch (error) {
+        console.error('Error loading clients:', error);
+        return [];
+      }
+    }
+    return [];
+  };
+
+  const findMatchingClient = (name: string): string | undefined => {
+    const clients = loadClients();
+    const normalizedName = name.toLowerCase().trim();
+    const client = clients.find(c => c.name.toLowerCase().trim() === normalizedName);
+    return client?.id;
+  };
 
   const loadAppointments = async () => {
     const { data, error } = await supabase
@@ -74,11 +105,14 @@ function App() {
         return;
       }
 
-      console.log('💾 Saving to database:', parsed);
+      const clientId = findMatchingClient(parsed.name);
+      const appointmentWithClient = { ...parsed, clientId };
+
+      console.log('💾 Saving to database:', appointmentWithClient);
 
       const { data, error } = await supabase
         .from('appointments')
-        .insert([parsed])
+        .insert([appointmentWithClient])
         .select();
 
       if (error) {
@@ -238,7 +272,7 @@ function App() {
               <CardTitle>Appointments</CardTitle>
             </CardHeader>
             <CardContent>
-              <Tabs defaultValue="calendar" className="w-full">
+              <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
                 <TabsList className="grid w-full grid-cols-3 mb-4">
                   <TabsTrigger value="calendar" className="flex items-center gap-2">
                     <Calendar className="w-4 h-4" />
@@ -306,9 +340,16 @@ function App() {
                                   <button
                                     key={event.id}
                                     onClick={() => handleEventClick(event)}
-                                    className="w-full text-left text-xs bg-blue-100 hover:bg-blue-200 text-blue-900 rounded px-1 py-0.5 transition-colors"
+                                    className={`w-full text-left text-xs rounded px-1 py-0.5 transition-colors ${
+                                      event.clientId
+                                        ? 'bg-green-100 hover:bg-green-200 text-green-900'
+                                        : 'bg-blue-100 hover:bg-blue-200 text-blue-900'
+                                    }`}
                                   >
-                                    <div className="font-medium truncate">{formatTime(event.datetime)}</div>
+                                    <div className="font-medium truncate flex items-center gap-1">
+                                      {event.clientId && <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-600" />}
+                                      {formatTime(event.datetime)}
+                                    </div>
                                     <div className="truncate">{event.name}</div>
                                   </button>
                                 ))}
@@ -373,7 +414,15 @@ function App() {
                 </TabsContent>
 
                 <TabsContent value="crm">
-                  <CRMView />
+                  <CRMView
+                    appointments={appointments}
+                    selectedClientId={selectedClientId}
+                    onAppointmentClick={(apt) => {
+                      setSelectedEvent(apt);
+                      setIsModalOpen(true);
+                      setSelectedClientId(undefined);
+                    }}
+                  />
                 </TabsContent>
               </Tabs>
             </CardContent>
@@ -420,6 +469,21 @@ function App() {
                   <p className="font-semibold">{selectedEvent.details}</p>
                 </div>
               </div>
+
+              {selectedEvent.clientId && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setCurrentTab('crm');
+                    setSelectedClientId(selectedEvent.clientId);
+                  }}
+                >
+                  <Users className="w-4 h-4 mr-2" />
+                  View Client Profile
+                </Button>
+              )}
 
               <Button
                 variant="destructive"
