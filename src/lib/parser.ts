@@ -163,6 +163,9 @@ Return ONLY valid JSON (no markdown, no code blocks, no extra text):
 function fallbackParser(text: string): ParsedAppointment | null {
   if (!text.trim()) return null;
 
+  console.log('🔧 Using fallback regex parser');
+  console.log('📝 Input text:', text);
+
   let remainingText = text.trim();
 
   const name = extractName(remainingText);
@@ -182,12 +185,25 @@ function fallbackParser(text: string): ParsedAppointment | null {
 
   const details = remainingText.trim() || 'No details provided';
 
-  return {
+  const result = {
     name: name || 'Unknown',
     phone: phone ? phone.formatted : 'No phone',
     details,
     datetime: dateTimeInfo ? dateTimeInfo.datetime : new Date().toISOString()
   };
+
+  console.log('✅ Fallback parser result:', result);
+  console.log('📅 Appointment will be on:', new Date(result.datetime).toLocaleString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  }));
+
+  return result;
 }
 
 function extractName(text: string): string | null {
@@ -223,14 +239,62 @@ function extractDateTime(text: string): { raw: string; datetime: string } | null
   let targetTime: { hours: number; minutes: number } | null = null;
   let matchedText = '';
 
-  if (lowerText.includes('tomorrow')) {
+  const monthNameMatch = text.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\s+(\d{1,2})(?:st|nd|rd|th)?\b/i);
+  if (monthNameMatch) {
+    const monthNames: { [key: string]: number } = {
+      'january': 0, 'jan': 0,
+      'february': 1, 'feb': 1,
+      'march': 2, 'mar': 2,
+      'april': 3, 'apr': 3,
+      'may': 4,
+      'june': 5, 'jun': 5,
+      'july': 6, 'jul': 6,
+      'august': 7, 'aug': 7,
+      'september': 8, 'sep': 8, 'sept': 8,
+      'october': 9, 'oct': 9,
+      'november': 10, 'nov': 10,
+      'december': 11, 'dec': 11
+    };
+
+    const monthName = monthNameMatch[1].toLowerCase();
+    const month = monthNames[monthName];
+    const day = parseInt(monthNameMatch[2]);
+    const year = now.getFullYear();
+
+    targetDate = new Date(year, month, day);
+
+    if (targetDate < now) {
+      targetDate.setFullYear(year + 1);
+    }
+
+    matchedText = monthNameMatch[0];
+    console.log(`📅 Parsed month name: ${monthName} ${day} -> ${targetDate.toISOString()}`);
+  }
+
+  const dayOnlyMatch = text.match(/\b(?:on\s+)?(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)\b/);
+  if (dayOnlyMatch && !monthNameMatch) {
+    const day = parseInt(dayOnlyMatch[1]);
+    const currentMonth = now.getMonth();
+    const currentDay = now.getDate();
+
+    targetDate = new Date(now.getFullYear(), currentMonth, day);
+
+    if (day < currentDay) {
+      targetDate.setMonth(currentMonth + 1);
+    }
+
+    matchedText = dayOnlyMatch[0];
+    console.log(`📅 Parsed day only: ${day} -> ${targetDate.toISOString()}`);
+  }
+
+  if (lowerText.includes('tomorrow') && !matchedText) {
     targetDate = new Date(now);
     targetDate.setDate(targetDate.getDate() + 1);
     matchedText = 'tomorrow';
   }
 
   const weekdayMatch = lowerText.match(/\b(next\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/);
-  if (weekdayMatch) {
+  if (weekdayMatch && !matchedText) {
     const weekdays = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const targetWeekday = weekdays.indexOf(weekdayMatch[2]);
     const isNext = weekdayMatch[1] !== undefined;
@@ -248,7 +312,7 @@ function extractDateTime(text: string): { raw: string; datetime: string } | null
   }
 
   const specificDateMatch = text.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
-  if (specificDateMatch) {
+  if (specificDateMatch && !matchedText) {
     const month = parseInt(specificDateMatch[1]) - 1;
     const day = parseInt(specificDateMatch[2]);
     const year = specificDateMatch[3] ?
@@ -286,8 +350,18 @@ function extractDateTime(text: string): { raw: string; datetime: string } | null
   if (targetTime) {
     targetDate.setHours(targetTime.hours, targetTime.minutes, 0, 0);
   } else {
-    targetDate.setHours(9, 0, 0, 0);
+    targetDate.setHours(12, 0, 0, 0);
   }
+
+  console.log(`🕐 Final parsed date: ${targetDate.toLocaleString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  })}`);
 
   return {
     raw: matchedText.trim(),
