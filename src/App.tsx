@@ -188,6 +188,52 @@ function App() {
     toast.success('Appointment updated');
   };
 
+  const handleAddToCRM = async () => {
+    if (!selectedEvent) return;
+
+    const STORAGE_KEY = 'quickSchedulerClients';
+    const stored = localStorage.getItem(STORAGE_KEY);
+    const clients = stored ? JSON.parse(stored) : [];
+
+    const existingClient = clients.find((c: { phone: string }) => c.phone === selectedEvent.phone);
+
+    let clientId: string;
+
+    if (existingClient) {
+      clientId = existingClient.id;
+      toast.info('Client already exists in CRM');
+    } else {
+      clientId = crypto.randomUUID();
+      const newClient = {
+        id: clientId,
+        name: selectedEvent.name,
+        phone: selectedEvent.phone,
+        status: 'Lead',
+        notes: selectedEvent.details
+      };
+      clients.push(newClient);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(clients));
+      toast.success('Added to CRM');
+    }
+
+    const { error } = await supabase
+      .from('appointments')
+      .update({ clientid: clientId })
+      .eq('id', selectedEvent.id);
+
+    if (error) {
+      console.error('Error linking appointment to client:', error);
+      toast.error('Failed to link appointment');
+      return;
+    }
+
+    const updatedAppointments = appointments.map(apt =>
+      apt.id === selectedEvent.id ? { ...apt, clientId: clientId } : apt
+    );
+    setAppointments(updatedAppointments);
+    setSelectedEvent({ ...selectedEvent, clientId: clientId });
+  };
+
   const handleEventClick = (appointment: Appointment) => {
     setSelectedEvent(appointment);
     setEditedDetails(appointment.details);
@@ -402,53 +448,55 @@ function App() {
                 </TabsContent>
 
                 <TabsContent value="list">
-                  <div className="border rounded-lg overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Name</TableHead>
-                          <TableHead>Phone</TableHead>
-                          <TableHead className="hidden md:table-cell">Details</TableHead>
-                          <TableHead>Date/Time</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {appointments.length === 0 ? (
+                  <div className="border rounded-lg overflow-x-auto bg-white w-full">
+                    <div className="min-w-[700px]">
+                      <Table>
+                        <TableHeader>
                           <TableRow>
-                            <TableCell colSpan={5} className="text-center text-gray-500">
-                              No appointments yet
-                            </TableCell>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Phone</TableHead>
+                            <TableHead className="hidden md:table-cell">Details</TableHead>
+                            <TableHead>Date/Time</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
                           </TableRow>
-                        ) : (
-                          appointments.map(apt => (
-                            <TableRow key={apt.id} className="cursor-pointer hover:bg-gray-50">
-                              <TableCell className="font-medium">{apt.name}</TableCell>
-                              <TableCell>{apt.phone}</TableCell>
-                              <TableCell className="hidden md:table-cell">{apt.details}</TableCell>
-                              <TableCell className="whitespace-nowrap">
-                                {new Date(apt.datetime).toLocaleDateString('en-US', {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  hour: 'numeric',
-                                  minute: '2-digit'
-                                })}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleDelete(apt.id)}
-                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
+                        </TableHeader>
+                        <TableBody>
+                          {appointments.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={5} className="text-center text-gray-500">
+                                No appointments yet
                               </TableCell>
                             </TableRow>
-                          ))
-                        )}
-                      </TableBody>
-                    </Table>
+                          ) : (
+                            appointments.map(apt => (
+                              <TableRow key={apt.id} className="cursor-pointer hover:bg-gray-50">
+                                <TableCell className="font-medium">{apt.name}</TableCell>
+                                <TableCell>{apt.phone}</TableCell>
+                                <TableCell className="hidden md:table-cell">{apt.details}</TableCell>
+                                <TableCell className="whitespace-nowrap">
+                                  {new Date(apt.datetime).toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: 'numeric',
+                                    minute: '2-digit'
+                                  })}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleDelete(apt.id)}
+                                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
                 </TabsContent>
 
@@ -543,7 +591,16 @@ function App() {
                 </Button>
               )}
 
-              {selectedEvent.clientId && (
+              {!selectedEvent.clientId ? (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleAddToCRM}
+                >
+                  <Users className="w-4 h-4 mr-2" />
+                  Add to CRM
+                </Button>
+              ) : (
                 <Button
                   variant="outline"
                   className="w-full"
