@@ -221,7 +221,7 @@ export function CRMView({ appointments, selectedClientId, onAppointmentClick }: 
                     <TableCell className="font-medium">
                       <button
                         onClick={() => openDetailModal(client)}
-                        className="text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-2"
+                        className="bg-white text-black hover:underline flex items-center gap-2"
                       >
                         {client.name}
                         {appointmentCount > 0 && (
