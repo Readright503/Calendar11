@@ -20,29 +20,42 @@ export async function parseAppointment(text: string): Promise<ParsedAppointment 
 
     const now = new Date();
     const currentDate = now.toISOString().split('T')[0];
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const currentDay = now.getDate();
     const currentTime = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
     const dayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long' });
 
-    const systemPrompt = `You are an appointment parser. Extract appointment information from user text.
+    const systemPrompt = `You are an appointment parser. Extract appointment information from user text and return valid JSON.
 
-Current context:
-- Today is ${dayOfWeek}, ${currentDate}
-- Current time is ${currentTime}
+CURRENT DATE/TIME CONTEXT:
+- Today is: ${dayOfWeek}, ${currentMonth}/${currentDay}/${currentYear}
+- Current time: ${currentTime}
+- ISO format: ${currentDate}
 
-Rules:
-1. Extract name, phone number (format as XXX-XXX-XXXX), date/time, and details
-2. For relative dates like "tomorrow", "next Friday", calculate the actual date
-3. If no time specified, use 12:00 PM (noon)
-4. Phone numbers must be 10 digits, formatted as XXX-XXX-XXXX
-5. Return date/time in ISO 8601 format (YYYY-MM-DDTHH:mm:ss.000Z)
+EXTRACTION RULES:
+1. NAME: Extract the person's full name
+2. PHONE: Extract phone number and format as XXX-XXX-XXXX (10 digits)
+3. DATETIME: Parse the date/time carefully:
+   - For specific dates like "December 29th" or "12/29", use that exact date in ${currentYear}
+   - For "tomorrow", add 1 day to today's date
+   - For "next Friday", find the next occurrence of Friday
+   - For weekday names like "Tuesday", find the next occurrence
+   - If NO time is specified, use 12:00 PM (noon) - which is 12:00:00 in 24-hour format
+   - Convert to ISO 8601 format in UTC timezone
+   - FORMAT: YYYY-MM-DDTHH:MM:SS.000Z
+4. DETAILS: Any remaining context about the appointment
 
-Return ONLY a JSON object with this exact structure (no markdown, no code blocks):
-{
-  "name": "Full Name",
-  "phone": "XXX-XXX-XXXX",
-  "datetime": "2025-12-29T20:00:00.000Z",
-  "details": "description of appointment"
-}`;
+EXAMPLES:
+Input: "meeting with Sam on December 29th number 818-999-0000"
+Output: {"name": "Sam", "phone": "818-999-0000", "datetime": "2025-12-29T20:00:00.000Z", "details": "meeting"}
+
+Input: "John 5551234567 tomorrow at 3pm"
+If today is 2025-12-17, tomorrow is 2025-12-18, 3pm is 15:00
+Output: {"name": "John", "phone": "555-123-4567", "datetime": "2025-12-18T23:00:00.000Z", "details": "appointment"}
+
+Return ONLY valid JSON (no markdown, no code blocks, no extra text):
+{"name": "string", "phone": "XXX-XXX-XXXX", "datetime": "YYYY-MM-DDTHH:MM:SS.000Z", "details": "string"}`;
 
     const requestBody = {
       model: 'deepseek-chat',
@@ -110,11 +123,28 @@ Return ONLY a JSON object with this exact structure (no markdown, no code blocks
       }
     }
 
+    const parsedDateTime = parsed.datetime || new Date().toISOString();
+    const appointmentDate = new Date(parsedDateTime);
+
+    console.log('📅 Date validation:');
+    console.log('   - Input text:', text);
+    console.log('   - Parsed datetime string:', parsedDateTime);
+    console.log('   - As Date object:', appointmentDate);
+    console.log('   - Formatted:', appointmentDate.toLocaleString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    }));
+
     const result = {
       name: parsed.name || 'Unknown',
       phone: formattedPhone,
       details: parsed.details || 'No details provided',
-      datetime: parsed.datetime || new Date().toISOString()
+      datetime: parsedDateTime
     };
 
     console.log('✨ Final appointment:', result);
