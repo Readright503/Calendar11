@@ -195,15 +195,15 @@ export function CRMView({ appointments, selectedClientId, onAppointmentClick }: 
         </Button>
       </div>
 
-      <div className="border rounded-lg overflow-hidden bg-white">
-        <Table>
+      <div className="border rounded-lg overflow-x-auto bg-white">
+        <Table className="min-w-full">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[200px]">Name</TableHead>
-              <TableHead className="w-[150px]">Phone</TableHead>
-              <TableHead className="w-[120px]">Status</TableHead>
-              <TableHead className="hidden md:table-cell">Notes</TableHead>
-              <TableHead className="text-right w-[200px]">Actions</TableHead>
+              <TableHead className="min-w-[200px]">Name</TableHead>
+              <TableHead className="min-w-[150px]">Phone</TableHead>
+              <TableHead className="min-w-[120px]">Status</TableHead>
+              <TableHead className="hidden md:table-cell min-w-[200px]">Notes</TableHead>
+              <TableHead className="text-right min-w-[220px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -218,7 +218,7 @@ export function CRMView({ appointments, selectedClientId, onAppointmentClick }: 
                 const appointmentCount = getAppointmentCount(client.id);
                 return (
                   <TableRow key={client.id} className="hover:bg-gray-50">
-                    <TableCell className="font-medium">
+                    <TableCell className="font-medium min-w-[200px]">
                       <button
                         onClick={() => openDetailModal(client)}
                         className="bg-white text-black hover:underline flex items-center gap-2"
@@ -231,16 +231,16 @@ export function CRMView({ appointments, selectedClientId, onAppointmentClick }: 
                         )}
                       </button>
                     </TableCell>
-                    <TableCell>{client.phone}</TableCell>
-                    <TableCell>
+                    <TableCell className="min-w-[150px]">{client.phone}</TableCell>
+                    <TableCell className="min-w-[120px]">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(client.status)}`}>
                         {client.status}
                       </span>
                     </TableCell>
-                    <TableCell className="hidden md:table-cell max-w-xs truncate">
+                    <TableCell className="hidden md:table-cell min-w-[200px] max-w-xs truncate">
                       {client.notes || '-'}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right min-w-[220px]">
                       <div className="flex justify-end gap-2">
                         <Button
                           variant="outline"
