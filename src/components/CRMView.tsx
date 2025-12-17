@@ -199,11 +199,11 @@ export function CRMView({ appointments, selectedClientId, onAppointmentClick }: 
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead className="w-[200px]">Name</TableHead>
+              <TableHead className="w-[150px]">Phone</TableHead>
+              <TableHead className="w-[120px]">Status</TableHead>
               <TableHead className="hidden md:table-cell">Notes</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead className="text-right w-[200px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
