@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, List, Trash2, Phone, Clock, User, FileText, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { Calendar, List, Trash2, Phone, Clock, User, FileText, ChevronLeft, ChevronRight, Plus, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +10,7 @@ import { parseAppointment } from './lib/parser';
 import { supabase } from './lib/supabase';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
+import { CRMView } from './components/CRMView';
 import './App.css';
 
 interface Appointment {
@@ -238,14 +239,18 @@ function App() {
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="calendar" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 mb-4">
+                <TabsList className="grid w-full grid-cols-3 mb-4">
                   <TabsTrigger value="calendar" className="flex items-center gap-2">
                     <Calendar className="w-4 h-4" />
-                    Calendar View
+                    Calendar
                   </TabsTrigger>
                   <TabsTrigger value="list" className="flex items-center gap-2">
                     <List className="w-4 h-4" />
-                    List View
+                    List
+                  </TabsTrigger>
+                  <TabsTrigger value="crm" className="flex items-center gap-2">
+                    <Users className="w-4 h-4" />
+                    CRM
                   </TabsTrigger>
                 </TabsList>
 
@@ -365,6 +370,10 @@ function App() {
                       </TableBody>
                     </Table>
                   </div>
+                </TabsContent>
+
+                <TabsContent value="crm">
+                  <CRMView />
                 </TabsContent>
               </Tabs>
             </CardContent>
